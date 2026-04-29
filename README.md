@@ -27,6 +27,7 @@ A [QField](https://qfield.org) plugin for quickly adding features to any editabl
    - The plugin folder should contain `main.qml` and `geom-less.svg`
 2. Open QField, go to **Settings → Plugins** and enable **Geomless**
 3. The button appears in the plugins toolbar
+<img width="381" height="376" alt="image" src="https://github.com/user-attachments/assets/235f6969-6231-4f69-9849-7fbb6b094b6f" />
 
 ---
 
