@@ -1,6 +1,6 @@
 # QField Geomless Plugin
 
-A [QField](https://qfield.org) plugin for quickly adding features to any editable layer — with or without geometry. Works with point, line, and polygon layers.
+A [QField](https://qfield.org) plugin for quickly adding features to any editable layer — with or without geometry. Works with point, line, and polygon layers.it will also enable browsing or edit existing records via long press.
 
 *The plugin adds a single button to the QField canvas.*
 
