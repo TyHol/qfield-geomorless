@@ -44,13 +44,9 @@ Behaviour depends on the **Short-press action** setting:
 
 The attribute form opens immediately after the feature is created so you can fill in values.
 
-![Feature form opening after tap](images/feature_form.png)
-
 #### GPS inactive
 
 If **GPS location** is selected but GPS has no valid fix, a confirmation dialog appears:
-
-![GPS inactive dialog](images/gps_inactive_dialog.png)
 
 Choose **Yes** to add a geometryless feature instead, or **No** to cancel.
 
@@ -68,8 +64,6 @@ Configurable in settings:
 ## Settings
 
 Open settings by long-pressing the toolbar button (or keep holding ~2 seconds if long press is set to browse records).
-
-![Settings dialog](images/settings_dialog.png)
 
 ### Target layer
 
@@ -94,8 +88,6 @@ Used when creating line or polygon features with the GPS or screen-centre action
 | Line bearing (°) | 0 | Direction the line extends from the start point. 0 = north, 90 = east, clockwise. Uses grid north (= true north for geographic CRS). |
 
 The bearing also rotates the polygon so the first vertex points in the set direction — useful for triangles or other non-circular shapes.
-
-![Shape settings](images/shape_settings.png)
 
 > **Note on bearing:** The plugin uses **grid north** (aligned to the map CRS). For geographic CRS (e.g. WGS84/EPSG:4326) this equals true north. For projected CRS it may differ slightly from true north due to meridian convergence — typically 1–3° for most areas, negligible for field use. Magnetic north is not supported directly; apply your local declination manually if needed.
 
