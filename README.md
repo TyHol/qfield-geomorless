@@ -1,9 +1,8 @@
 # QField Geomless Plugin
 
-A [QField](https://qfield.org) plugin for quickly adding features to any editable layer — with or without geometry. Works with point, line, and polygon layers.
+A [QField](https://qfield.org) plugin for quickly adding features to any editable layer — with or without geometry. Works with point, line, and polygon layers.it will also enable browsing or edit existing records via long press.
 
-![Plugin toolbar button](images/toolbar_button.png)
-*The plugin adds a single button to the QField toolbar.*
+*The plugin adds a single button to the QField canvas.*
 
 ---
 
@@ -26,7 +25,10 @@ A [QField](https://qfield.org) plugin for quickly adding features to any editabl
    - Android: `<QField data folder>/QField/plugins/`
    - The plugin folder should contain `main.qml` and `geom-less.svg`
 2. Open QField, go to **Settings → Plugins** and enable **Geomless**
-3. The button appears in the plugins toolbar
+3. The button appears in the plugins toolbar.
+
+Scan to download zip:
+<img width="381" height="376" alt="image" src="https://github.com/user-attachments/assets/235f6969-6231-4f69-9849-7fbb6b094b6f" />
 
 ---
 
