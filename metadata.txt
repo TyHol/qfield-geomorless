@@ -1,0 +1,7 @@
+[general]
+name=geomorless
+description=Add point, polygons lines and non geometric features with on click
+author=tyhol
+icon= geom-less.svg
+version=0.0
+homepage=https://www.TBC.comish
