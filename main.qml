@@ -22,7 +22,8 @@ Item {
         id: appSettings
         category: "GeomlessPlugin"
         property string geomlessLayerName:          ""
-        property bool   geomlessLongPressSettings:  true
+        property bool   geomlessFixedMode:          true
+        property string geomlessLastUsedLayerName:  ""
         property int    geomlessShortPressAction:   0   // 0=geometryless, 1=GPS, 2=screen centre
         property real   geomlessRadiusM:            10  // metres — polygon radius / line length
         property int    geomlessPolyVertices:       16  // polygon approximation vertices (≥3)
@@ -30,14 +31,14 @@ Item {
     }
 
     ListModel { id: geomlessLayerPickerModel }
+    ListModel { id: dynamicLayerModel }
 
     Component.onCompleted: {
         iface.addItemToPluginsToolbar(geomlessButton)
-        geomlessLongPressSettingsChk.checked = appSettings.geomlessLongPressSettings
-        geomlessActionGroup.checkedButton    = [geomlessActionGeomless, geomlessActionGPS, geomlessActionScreen][appSettings.geomlessShortPressAction]
-        geomlessRadiusField.text             = appSettings.geomlessRadiusM
-        geomlessVerticesField.text           = appSettings.geomlessPolyVertices
-        geomlessBearingField.text            = appSettings.geomlessLineBearing
+        geomlessActionGroup.checkedButton = [geomlessActionGeomless, geomlessActionGPS, geomlessActionScreen][appSettings.geomlessShortPressAction]
+        geomlessRadiusField.text          = appSettings.geomlessRadiusM
+        geomlessVerticesField.text        = appSettings.geomlessPolyVertices
+        geomlessBearingField.text         = appSettings.geomlessLineBearing
     }
 
     // ── Toolbar button ────────────────────────────────────────────────────────
@@ -50,74 +51,52 @@ Item {
         ToolTip.visible: hovered
         ToolTip.delay: 500
 
+        property bool holdActive:  false
+        property bool timerFired:  false
+
+        // onPressedChanged is reliable on QfToolButton; onPressed() signal is not
+        onPressedChanged: {
+            if (pressed) {
+                holdActive = false
+                timerFired = false
+            }
+        }
+
         onClicked: {
-            var layer = resolveGeomlessLayer()
-            if (!layer) {
-                mainWindow.displayToast(qsTr('No editable layer found — opening setup'))
-                settingsDialog.open()
-                return
-            }
-            var action = appSettings.geomlessShortPressAction
-            var geomType = (layer.geometryType && typeof layer.geometryType === 'function')
-                           ? layer.geometryType() : -1
-
-            if (action === 1) {
-                if (!positionSource.active ||
-                        !positionSource.positionInformation.latitudeValid ||
-                        !positionSource.positionInformation.longitudeValid) {
-                    gpsInactiveDialog.pendingLayer = layer
-                    gpsInactiveDialog.open()
-                    return
-                }
-            }
-
-            var geometry
-            if (action === 1) {
-                var wgs84    = CoordinateReferenceSystemUtils.fromDescription("EPSG:4326")
-                var gpsPoint = GeometryUtils.point(
-                    positionSource.positionInformation.longitude,
-                    positionSource.positionInformation.latitude)
-                var layerPt  = GeometryUtils.reprojectPoint(gpsPoint, wgs84, layer.crs)
-                geometry = GeometryUtils.createGeometryFromWkt(
-                    wktForGeomType(geomType, layerPt.x, layerPt.y, layer.crs))
-            } else if (action === 2) {
-                var canvasPt = GeometryUtils.reprojectPoint(canvas.center,
-                                   mapCanvas.mapSettings.destinationCrs, layer.crs)
-                geometry = GeometryUtils.createGeometryFromWkt(
-                    wktForGeomType(geomType, canvasPt.x, canvasPt.y, layer.crs))
-            } else {
-                geometry = GeometryUtils.createGeometryFromWkt('')
-            }
-
-            var feature = FeatureUtils.createFeature(layer, geometry)
-            overlayFeatureFormDrawer.featureModel.currentLayer = layer
-            overlayFeatureFormDrawer.featureModel.feature = feature
-            overlayFeatureFormDrawer.state = "Add"
-            overlayFeatureFormDrawer.open()
+            // Only fires on short press — Qt does not emit clicked() after pressAndHold()
+            getLayerAndDo(function(layer) { openGeomlessRecords(layer) }, "browse")
         }
 
         onPressAndHold: {
-            if (appSettings.geomlessLongPressSettings) {
-                settingsDialog.open()
-            } else {
-                veryLongPressTimer.start()
-                var layer = resolveGeomlessLayer()
-                if (!layer) { mainWindow.displayToast(qsTr('No editable layer found')); return }
-                openGeomlessRecords(layer)
-            }
+            holdActive = true
+            veryLongPressTimer.start()
         }
 
-        onReleased: veryLongPressTimer.stop()
+        onReleased: {
+            if (holdActive) {
+                holdActive = false
+                if (!timerFired) {
+                    veryLongPressTimer.stop()
+                    getLayerAndDo(function(layer) { createFeatureOnLayer(layer) }, "create")
+                }
+                // else: timer already fired → settings already opened, nothing to do
+            }
+        }
     }
 
+    // Fires ~1.2 s after pressAndHold threshold — "very long press" → settings
     Timer {
         id: veryLongPressTimer
         interval: 1200
         repeat: false
-        onTriggered: settingsDialog.open()
+        onTriggered: {
+            geomlessButton.timerFired = true
+            settingsDialog.open()
+        }
     }
 
     // ── Helper functions ──────────────────────────────────────────────────────
+
     function resolveGeomlessLayer() {
         var saved = appSettings.geomlessLayerName
         if (saved && saved !== "") {
@@ -126,6 +105,65 @@ Item {
             appSettings.geomlessLayerName = ""
         }
         return dashBoard.activeLayer
+    }
+
+    // Routes an action through the Fixed or Dynamic layer-selection path.
+    // action(layer) is called once a layer is confirmed.
+    function getLayerAndDo(action, actionType) {
+        if (appSettings.geomlessFixedMode) {
+            var layer = resolveGeomlessLayer()
+            if (!layer) {
+                mainWindow.displayToast(qsTr('No editable layer found — opening setup'))
+                settingsDialog.open()
+                return
+            }
+            action(layer)
+        } else {
+            dynamicPickerDialog.pendingAction     = action
+            dynamicPickerDialog.pendingActionType = actionType || "create"
+            populateDynamicLayerModel()
+            dynamicPickerDialog.open()
+        }
+    }
+
+    function createFeatureOnLayer(layer) {
+        var action   = appSettings.geomlessShortPressAction
+        var geomType = (layer.geometryType && typeof layer.geometryType === 'function')
+                       ? layer.geometryType() : -1
+
+        if (action === 1) {
+            if (!positionSource.active ||
+                    !positionSource.positionInformation.latitudeValid ||
+                    !positionSource.positionInformation.longitudeValid) {
+                gpsInactiveDialog.pendingLayer = layer
+                gpsInactiveDialog.open()
+                return
+            }
+        }
+
+        var geometry
+        if (action === 1) {
+            var wgs84    = CoordinateReferenceSystemUtils.fromDescription("EPSG:4326")
+            var gpsPoint = GeometryUtils.point(
+                positionSource.positionInformation.longitude,
+                positionSource.positionInformation.latitude)
+            var layerPt  = GeometryUtils.reprojectPoint(gpsPoint, wgs84, layer.crs)
+            geometry = GeometryUtils.createGeometryFromWkt(
+                wktForGeomType(geomType, layerPt.x, layerPt.y, layer.crs))
+        } else if (action === 2) {
+            var canvasPt = GeometryUtils.reprojectPoint(canvas.center,
+                               mapCanvas.mapSettings.destinationCrs, layer.crs)
+            geometry = GeometryUtils.createGeometryFromWkt(
+                wktForGeomType(geomType, canvasPt.x, canvasPt.y, layer.crs))
+        } else {
+            geometry = GeometryUtils.createGeometryFromWkt('')
+        }
+
+        var feature = FeatureUtils.createFeature(layer, geometry)
+        overlayFeatureFormDrawer.featureModel.currentLayer = layer
+        overlayFeatureFormDrawer.featureModel.feature = feature
+        overlayFeatureFormDrawer.state = "Add"
+        overlayFeatureFormDrawer.open()
     }
 
     // Converts metres to CRS units at latitude cy.
@@ -139,24 +177,23 @@ Item {
         var crsUnits = metres
         try {
             var u = crs.mapUnits()
-            if      (u === Qgis.DistanceUnit.Feet)              crsUnits = metres * 3.28084
-            else if (u === Qgis.DistanceUnit.NauticalMiles)     crsUnits = metres / 1852
-            else if (u === Qgis.DistanceUnit.Kilometers)        crsUnits = metres / 1000
-            else if (u === Qgis.DistanceUnit.Yards)             crsUnits = metres * 1.09361
-            else if (u === Qgis.DistanceUnit.Miles)             crsUnits = metres / 1609.344
-            // Meters and unknown: pass through unchanged
+            if      (u === Qgis.DistanceUnit.Feet)          crsUnits = metres * 3.28084
+            else if (u === Qgis.DistanceUnit.NauticalMiles) crsUnits = metres / 1852
+            else if (u === Qgis.DistanceUnit.Kilometers)    crsUnits = metres / 1000
+            else if (u === Qgis.DistanceUnit.Yards)         crsUnits = metres * 1.09361
+            else if (u === Qgis.DistanceUnit.Miles)         crsUnits = metres / 1609.344
         } catch (e) {}
         return { x: crsUnits, y: crsUnits }
     }
 
     // Builds WKT appropriate for the layer geometry type.
     // Point   → POINT at cx, cy
-    // Line    → LINESTRING from (cx,cy) extending `geomlessRadiusM` metres
-    //           in the grid bearing `geomlessLineBearing` (0=N, 90=E, clockwise)
-    // Polygon → regular N-vertex polygon, radius `geomlessRadiusM` metres
+    // Line    → LINESTRING from (cx,cy) extending geomlessRadiusM metres
+    //           in the grid bearing geomlessLineBearing (0=N, 90=E, clockwise)
+    // Polygon → regular N-vertex polygon, radius geomlessRadiusM metres
     function wktForGeomType(geomType, cx, cy, crs) {
         if (geomType === Qgis.GeometryType.Line) {
-            var len = appSettings.geomlessRadiusM
+            var len        = appSettings.geomlessRadiusM
             var bearingRad = appSettings.geomlessLineBearing * Math.PI / 180
             var off1 = mToCrs(crs, cy, 1)
             var dx = len * Math.sin(bearingRad) * off1.x
@@ -165,10 +202,8 @@ Item {
                                  + (cx + dx) + ' ' + (cy + dy) + ')'
         }
         if (geomType === Qgis.GeometryType.Polygon) {
-            var r        = mToCrs(crs, cy, appSettings.geomlessRadiusM)
-            var n        = Math.max(3, appSettings.geomlessPolyVertices)
-            // rotate so first vertex points in the bearing direction
-            // grid bearing (CW from N) → math angle (CCW from E)
+            var r          = mToCrs(crs, cy, appSettings.geomlessRadiusM)
+            var n          = Math.max(3, appSettings.geomlessPolyVertices)
             var startAngle = Math.PI / 2 - appSettings.geomlessLineBearing * Math.PI / 180
             var pts = []
             for (var i = 0; i <= n; i++) {
@@ -199,6 +234,7 @@ Item {
         })
     }
 
+    // Populates geomlessLayerPickerModel for the settings dialog (Fixed mode).
     function populateGeomlessLayerModel() {
         geomlessLayerPickerModel.clear()
         var normal = [], priv = []
@@ -226,7 +262,6 @@ Item {
             for (var j = 0; j < priv.length; j++)
                 geomlessLayerPickerModel.append({ "name": priv[j].name, "isHeader": false })
         }
-        // Restore saved selection
         var saved = appSettings.geomlessLayerName
         var found = false
         for (var k = 0; k < geomlessLayerPickerModel.count; k++) {
@@ -237,6 +272,46 @@ Item {
             }
         }
         if (!found) geomlessLayerDropdown.currentIndex = 0
+    }
+
+    // Populates dynamicLayerModel for the per-action layer picker.
+    // Defaults to geomlessLastUsedLayerName.
+    function populateDynamicLayerModel() {
+        dynamicLayerModel.clear()
+        var normal = [], priv = []
+        try {
+            var all = ProjectUtils.mapLayers(qgisProject)
+            for (var id in all) {
+                var lyr = all[id]
+                try {
+                    if (lyr && lyr.supportsEditing === true) {
+                        var isPrivate = false
+                        try { isPrivate = (lyr.flags & 8) !== 0 } catch (e2) {}
+                        if (isPrivate) priv.push(lyr)
+                        else normal.push(lyr)
+                    }
+                } catch (e) {}
+            }
+        } catch (e) {}
+        normal.sort(function(a, b) { return a.name.localeCompare(b.name) })
+        priv.sort(function(a, b) { return a.name.localeCompare(b.name) })
+        dynamicLayerModel.append({ "name": qsTr("Active Layer"), "isHeader": false })
+        for (var i = 0; i < normal.length; i++)
+            dynamicLayerModel.append({ "name": normal[i].name, "isHeader": false })
+        if (priv.length > 0) {
+            dynamicLayerModel.append({ "name": qsTr("— Private Layers —"), "isHeader": true })
+            for (var j = 0; j < priv.length; j++)
+                dynamicLayerModel.append({ "name": priv[j].name, "isHeader": false })
+        }
+        var saved = appSettings.geomlessLastUsedLayerName
+        var foundIdx = 0
+        for (var k = 0; k < dynamicLayerModel.count; k++) {
+            if (dynamicLayerModel.get(k).name === saved) {
+                foundIdx = k
+                break
+            }
+        }
+        dynamicLayerDropdown.currentIndex = foundIdx
     }
 
     // ── GPS inactive confirmation dialog ──────────────────────────────────────
@@ -251,24 +326,131 @@ Item {
 
         property var pendingLayer: null
 
-        title: qsTr("GPS Inactive")
-        standardButtons: Dialog.Yes | Dialog.No
+       // title: qsTr("GPS Inactive")
+        standardButtons: Dialog.NoButton
 
-        Label {
+        Column {
             width: parent.width
-            text: qsTr("GPS is not active or has no valid position.\nAdd a geometryless feature instead?")
-            wrapMode: Text.WordWrap
-            font: Theme.defaultFont
+            spacing: 6
+
+            Label {
+                width: parent.width
+                text: qsTr("GPS is not active or has no valid position.")
+                wrapMode: Text.WordWrap
+                font: Theme.defaultFont
+            }
+
+            Button {
+                width: parent.width
+                text: qsTr("Create at screen centre")
+                onClicked: {
+                    gpsInactiveDialog.close()
+                    var layer = gpsInactiveDialog.pendingLayer
+                    if (!layer) return
+                    var geomType = (layer.geometryType && typeof layer.geometryType === 'function')
+                                   ? layer.geometryType() : -1
+                    var canvasPt = GeometryUtils.reprojectPoint(canvas.center,
+                                       mapCanvas.mapSettings.destinationCrs, layer.crs)
+                    var geometry = GeometryUtils.createGeometryFromWkt(
+                                       wktForGeomType(geomType, canvasPt.x, canvasPt.y, layer.crs))
+                    var feature = FeatureUtils.createFeature(layer, geometry)
+                    overlayFeatureFormDrawer.featureModel.currentLayer = layer
+                    overlayFeatureFormDrawer.featureModel.feature = feature
+                    overlayFeatureFormDrawer.state = "Add"
+                    overlayFeatureFormDrawer.open()
+                }
+            }
+
+            Button {
+                width: parent.width
+                text: qsTr("Create geometryless feature")
+                onClicked: {
+                    gpsInactiveDialog.close()
+                    var layer = gpsInactiveDialog.pendingLayer
+                    if (!layer) return
+                    var geometry = GeometryUtils.createGeometryFromWkt('')
+                    var feature  = FeatureUtils.createFeature(layer, geometry)
+                    overlayFeatureFormDrawer.featureModel.currentLayer = layer
+                    overlayFeatureFormDrawer.featureModel.feature = feature
+                    overlayFeatureFormDrawer.state = "Add"
+                    overlayFeatureFormDrawer.open()
+                }
+            }
+
+            Button {
+                width: parent.width
+                text: qsTr("Cancel")
+                onClicked: gpsInactiveDialog.close()
+            }
+        }
+    }
+
+    // ── Dynamic layer picker (shown each time in Dynamic mode) ────────────────
+    Dialog {
+        id: dynamicPickerDialog
+        parent: mainWindow.contentItem
+        modal: true
+        width: Math.min(320, mainWindow.width - 16)
+        font: Theme.defaultFont
+        x: (mainWindow.width  - width)  / 2
+        y: (mainWindow.height - height) * 0.3
+
+        property var    pendingAction:     null
+        property string pendingActionType: "create"
+
+        title: pendingActionType === "browse" ? qsTr("Select layer to browse")
+                                              : qsTr("Select layer to add to")
+        standardButtons: Dialog.Ok | Dialog.Cancel
+
+        Column {
+            width: parent.width
+            spacing: 8
+            padding: 4
+
+            ComboBox {
+                id: dynamicLayerDropdown
+                width: parent.width - 8
+                model: dynamicLayerModel
+                textRole: "name"
+                onActivated: {
+                    var item = dynamicLayerModel.get(currentIndex)
+                    if (item && item.isHeader) currentIndex = Math.max(0, currentIndex - 1)
+                }
+                delegate: ItemDelegate {
+                    width: dynamicLayerDropdown.width
+                    enabled: !model.isHeader
+                    contentItem: Text {
+                        text: model.name
+                        font.italic: model.isHeader
+                        color: model.isHeader ? "#888888" : (highlighted ? "#ffffff" : "#000000")
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: model.isHeader ? 4 : 12
+                    }
+                    highlighted: dynamicLayerDropdown.highlightedIndex === index
+                }
+            }
         }
 
         onAccepted: {
-            if (!pendingLayer) return
-            var geometry = GeometryUtils.createGeometryFromWkt('')
-            var feature  = FeatureUtils.createFeature(pendingLayer, geometry)
-            overlayFeatureFormDrawer.featureModel.currentLayer = pendingLayer
-            overlayFeatureFormDrawer.featureModel.feature = feature
-            overlayFeatureFormDrawer.state = "Add"
-            overlayFeatureFormDrawer.open()
+            var idx  = dynamicLayerDropdown.currentIndex
+            var item = dynamicLayerModel.get(idx)
+            if (!item || item.isHeader) return
+
+            var layer
+            if (idx === 0) {
+                layer = dashBoard.activeLayer
+            } else {
+                var found = qgisProject.mapLayersByName(item.name)
+                layer = (found && found.length > 0) ? found[0] : null
+            }
+
+            if (!layer) {
+                mainWindow.displayToast(qsTr('Layer not found'))
+                return
+            }
+
+            appSettings.geomlessLastUsedLayerName = item.name
+            if (pendingAction) pendingAction(layer)
         }
     }
 
@@ -278,13 +460,13 @@ Item {
         parent: mainWindow.contentItem
         modal: true
         width: Math.min(360, mainWindow.width - 16)
-        height: Math.min(520, mainWindow.height - 32)
+        height: Math.min(560, mainWindow.height - 32)
         font: Theme.defaultFont
         x: (mainWindow.width  - width)  / 2
         y: (mainWindow.height - height) * 0.15
 
-        title: qsTr("Add Geometryless Feature")
-        standardButtons: Dialog.NoButton
+        title: qsTr("Geomorless Settings")
+        standardButtons: Dialog.Close
 
         onOpened: populateGeomlessLayerModel()
 
@@ -298,52 +480,86 @@ Item {
                 padding: 8
                 spacing: 6
 
-                Label { text: qsTr("Target layer:"); font.pixelSize: 10 }
-                ComboBox {
-                    id: geomlessLayerDropdown
-                    width: parent.width - 16
-                    model: geomlessLayerPickerModel
-                    textRole: "name"
-                    onActivated: {
-                        var item = geomlessLayerPickerModel.get(currentIndex)
-                        if (item.isHeader) { currentIndex = Math.max(0, currentIndex - 1); return }
-                        appSettings.geomlessLayerName = (currentIndex === 0) ? "" : item.name
-                    }
-                    delegate: ItemDelegate {
-                        width: geomlessLayerDropdown.width
-                        enabled: !model.isHeader
-                        contentItem: Text {
-                            text: model.name
-                            font.italic: model.isHeader
-                            color: model.isHeader ? "#888888" : (highlighted ? "#ffffff" : "#000000")
-                            verticalAlignment: Text.AlignVCenter
-                            leftPadding: model.isHeader ? 4 : 12
-                        }
-                        highlighted: geomlessLayerDropdown.highlightedIndex === index
-                    }
-                }
+                // ── Mode ─────────────────────────────────────────────────────
+                Label { text: qsTr("Layer mode"); font.pixelSize: 10; font.bold: true }
+                Item  { width: 1; height: 2 }
 
-                Button {
-                    text: qsTr("Reset to active layer")
-                    font.pixelSize: 9
-                    onClicked: {
-                        appSettings.geomlessLayerName = ""
-                        populateGeomlessLayerModel()
-                    }
+                CheckBox {
+                    id: geomlessFixedModeChk
+                    text: qsTr("Fixed layer mode")
+                    font.pixelSize: 9; implicitHeight: 28
+                    checked: appSettings.geomlessFixedMode
+                    onCheckedChanged: appSettings.geomlessFixedMode = checked
                 }
 
                 Label {
-                    visible: geomlessLayerDropdown.currentIndex === 0
                     width: parent.width - 16
-                    text: qsTr("Without an explicit selection the active layer will be used.")
+                    text: geomlessFixedModeChk.checked
+                          ? qsTr("Always uses the layer selected below.")
+                          : qsTr("A layer picker appears on every create or browse action. The most recently used layer is pre-selected.")
                     wrapMode: Text.WordWrap
                     font.pixelSize: 9
                     color: "#666666"
                 }
 
+                // ── Fixed-mode layer selection ────────────────────────────────
+                Column {
+                    width: parent.width
+                    spacing: 6
+                    visible: geomlessFixedModeChk.checked
+
+                    Rectangle { width: parent.width; height: 1; color: "#cccccc" }
+                    Item { width: 1; height: 4 }
+
+                    Label { text: qsTr("Target layer:"); font.pixelSize: 10 }
+
+                    ComboBox {
+                        id: geomlessLayerDropdown
+                        width: parent.width - 16
+                        model: geomlessLayerPickerModel
+                        textRole: "name"
+                        onActivated: {
+                            var item = geomlessLayerPickerModel.get(currentIndex)
+                            if (item.isHeader) { currentIndex = Math.max(0, currentIndex - 1); return }
+                            appSettings.geomlessLayerName = (currentIndex === 0) ? "" : item.name
+                        }
+                        delegate: ItemDelegate {
+                            width: geomlessLayerDropdown.width
+                            enabled: !model.isHeader
+                            contentItem: Text {
+                                text: model.name
+                                font.italic: model.isHeader
+                                color: model.isHeader ? "#888888" : (highlighted ? "#ffffff" : "#000000")
+                                verticalAlignment: Text.AlignVCenter
+                                leftPadding: model.isHeader ? 4 : 12
+                            }
+                            highlighted: geomlessLayerDropdown.highlightedIndex === index
+                        }
+                    }
+
+                    Button {
+                        text: qsTr("Reset to active layer")
+                        font.pixelSize: 9
+                        onClicked: {
+                            appSettings.geomlessLayerName = ""
+                            populateGeomlessLayerModel()
+                        }
+                    }
+
+                    Label {
+                        visible: geomlessLayerDropdown.currentIndex === 0
+                        width: parent.width - 16
+                        text: qsTr("Without an explicit selection the active layer will be used.")
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: 9
+                        color: "#666666"
+                    }
+                }
+
                 Rectangle { width: parent.width; height: 1; color: "#cccccc" }
                 Item { width: 1; height: 4 }
 
+                // ── Short-press action ────────────────────────────────────────
                 Label { text: qsTr("Short-press action"); font.pixelSize: 10; font.bold: true }
                 Item  { width: 1; height: 2 }
 
@@ -384,6 +600,7 @@ Item {
                 Rectangle { width: parent.width; height: 1; color: "#cccccc" }
                 Item { width: 1; height: 4 }
 
+                // ── Shape settings ────────────────────────────────────────────
                 Label { text: qsTr("Shape settings"); font.pixelSize: 10; font.bold: true }
                 Item  { width: 1; height: 2 }
 
@@ -450,27 +667,19 @@ Item {
                 Rectangle { width: parent.width; height: 1; color: "#cccccc" }
                 Item { width: 1; height: 4 }
 
-                Label { text: qsTr("Long-press action"); font.pixelSize: 10; font.bold: true }
+                // ── Button reference ──────────────────────────────────────────
+                Label { text: qsTr("Button actions"); font.pixelSize: 10; font.bold: true }
                 Item  { width: 1; height: 2 }
-
-                CheckBox {
-                    id: geomlessLongPressSettingsChk
-                    text: qsTr("Open settings on long press")
-                    font.pixelSize: 9; implicitHeight: 28
-                    checked: appSettings.geomlessLongPressSettings
-                    onCheckedChanged: appSettings.geomlessLongPressSettings = checked
-                }
 
                 Label {
                     width: parent.width - 16
-                    text: checked
-                          ? qsTr("Long press opens this settings dialog.")
-                          : qsTr("Long press opens the first record, or the feature list if there are multiple. Keep holding (~2 seconds) to open settings.")
-                    property bool checked: geomlessLongPressSettingsChk.checked
+                    text: qsTr("Short press: browse records\nLong press: create feature\nVery long press (~2 s): open this settings dialog")
                     wrapMode: Text.WordWrap
                     font.pixelSize: 9
                     color: "#666666"
                 }
+
+                Item { width: 1; height: 4 }
             }
         }
     }
