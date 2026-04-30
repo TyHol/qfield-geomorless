@@ -39,9 +39,6 @@ https://github.com/user-attachments/assets/928d6d4a-d19e-48ba-98d4-0ee0b23100cb
 ## Button actions
 
 | Press | Action |
-
-
-
 |---|---|
 | Short press | Browse records in the target layer |
 | Long press | Create a new feature |
