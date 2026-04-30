@@ -16,6 +16,7 @@ A [QField](https://qfield.org) plugin for quickly adding features to any editabl
 - Two **layer modes** — Fixed (always use a set layer) or Dynamic (pick the layer each time)
 - Configurable **radius/length**, **polygon vertices**, and **line bearing**
 - All settings persist between sessions
+- Open settings by holding the toolbar button for ~2 seconds (loooong press).
 
 ---
 
