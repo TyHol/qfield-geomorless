@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp \"c:/Users/tonyh/Documents/GitHub/qfield-geomorless/main.qml\" \"C:/Users/tonyh/Documents/QField Documents/QField/plugins/qfield-geomorless/main.qml\")",
+      "Bash(cp \"c:/Users/tonyh/Documents/GitHub/qfield-geomorless/geom-less.svg\" \"C:/Users/tonyh/Documents/QField Documents/QField/plugins/qfield-geomorless/geom-less.svg\")",
+      "Read(//c/Users/tonyh/Documents/QField Documents/QField/plugins/**)",
+      "Bash(git commit -m ' *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\tonyh\\Documents\\QField Documents\\QField\\plugins\\qfield-geomorless"
+    ]
+  }
+}
