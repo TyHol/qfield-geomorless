@@ -1,3 +1,5 @@
+
+
 # QField Geomorless Plugin
 
 A [QField](https://qfield.org) plugin for quickly browsing or adding features to any editable layer — with or without geometry. Works with point, line, and polygon layers.
@@ -31,12 +33,20 @@ A [QField](https://qfield.org) plugin for quickly browsing or adding features to
 Scan to download zip:
 <img width="360" height="356" alt="image" src="https://github.com/user-attachments/assets/55c769a9-3887-4e58-9304-726388955d2c" />
 
+https://github.com/user-attachments/assets/a450b0f1-35e4-43ad-8f5d-91a6794628cd
+
+
+
+https://github.com/user-attachments/assets/928d6d4a-d19e-48ba-98d4-0ee0b23100cb
 
 ---
 
 ## Button actions
 
 | Press | Action |
+
+
+
 |---|---|
 | Short press | Browse records in the target layer |
 | Long press | Create a new feature |
