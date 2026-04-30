@@ -24,11 +24,6 @@ A [QField](https://qfield.org) plugin for quickly browsing or adding features to
 
 ## Installation
 
-1. Copy the `qfield-geomless` folder into your QField plugins directory:
-   - Android: `<QField data folder>/QField/plugins/`
-   - The plugin folder should contain `main.qml` and `geom-less.svg`
-2. Open QField, go to **Settings → Plugins** and enable **Geomless**
-3. The button appears in the plugins toolbar.
 
 Scan to download zip:
 <img width="360" height="356" alt="image" src="https://github.com/user-attachments/assets/55c769a9-3887-4e58-9304-726388955d2c" />
