@@ -1,4 +1,4 @@
-# QField Geomless Plugin
+# QField Geomorless Plugin
 
 A [QField](https://qfield.org) plugin for quickly adding features to any editable layer — with or without geometry. Works with point, line, and polygon layers.
 
