@@ -29,7 +29,8 @@ A [QField](https://qfield.org) plugin for quickly adding features to any editabl
 3. The button appears in the plugins toolbar.
 
 Scan to download zip:
-<img width="381" height="376" alt="image" src="https://github.com/user-attachments/assets/235f6969-6231-4f69-9849-7fbb6b094b6f" />
+<img width="360" height="356" alt="image" src="https://github.com/user-attachments/assets/55c769a9-3887-4e58-9304-726388955d2c" />
+
 
 ---
 
