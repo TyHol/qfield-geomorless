@@ -52,7 +52,7 @@ Opens the feature list for the target layer. If the layer has a single record th
 
 ### Long press — add a feature
 
-Behaviour depends on the **Short-press action** setting:
+The geometry placed depends on the **Create action** setting in settings:
 
 | Action | Point layer | Line layer | Polygon layer |
 |---|---|---|---|
@@ -87,9 +87,9 @@ Open settings by holding the toolbar button for ~2 seconds.
 
 Select the layer features will be added to. Defaults to the **active layer** if none is selected. The layer list shows all editable layers in the current project.
 
-### Short-press action
+### Create action
 
-Controls the geometry placed when creating a new feature:
+Controls the geometry placed when creating a new feature (long press):
 
 | Option | Description |
 |---|---|

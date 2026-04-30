@@ -560,7 +560,7 @@ Item {
                 Item { width: 1; height: 4 }
 
                 // ── Short-press action ────────────────────────────────────────
-                Label { text: qsTr("Short-press action"); font.pixelSize: 10; font.bold: true }
+                Label { text: qsTr("Create action"); font.pixelSize: 10; font.bold: true }
                 Item  { width: 1; height: 2 }
 
                 ButtonGroup { id: geomlessActionGroup }
